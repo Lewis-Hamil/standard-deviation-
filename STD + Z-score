@@ -1,0 +1,71 @@
+#----------------------------------------------------
+# Convolutional Z-Score Panel
+# Shows price in std-dev space (distribution view)
+#----------------------------------------------------
+
+declare lower;
+
+input length = 21;
+input sigmaScale = 0.4;
+input price = close;
+
+def L = Max(3, length);
+def mid = (L - 1) / 2.0;
+
+# Same Gaussian weights
+def totalWeight =
+    fold j = 0 to L
+    with w = 0.0
+    do w + Exp(-Sqr((j - mid) / (sigmaScale * mid)) / 2);
+
+def convMean =
+    fold i = 0 to L
+    with m = 0.0
+    do m
+       + (Exp(-Sqr((i - mid) / (sigmaScale * mid)) / 2) / totalWeight)
+         * price[i];
+
+def convSecondMoment =
+    fold k = 0 to L
+    with s = 0.0
+    do s
+       + (Exp(-Sqr((k - mid) / (sigmaScale * mid)) / 2) / totalWeight)
+         * Sqr(price[k]);
+
+def convVar = Max(convSecondMoment - Sqr(convMean), 0);
+def convStd = Sqrt(convVar);
+
+# Z-score of current price relative to convolutional distribution
+def Z = if convStd != 0 then (price - convMean) / convStd else 0;
+
+plot ZScore = Z;
+ZScore.SetDefaultColor(Color.CYAN);
+ZScore.SetLineWeight(2);
+
+# Std-dev reference levels
+plot Plus1  = 1;
+plot Minus1 = -1;
+plot Plus2  = 2;
+plot Minus2 = -2;
+plot Plus3  = 3;
+plot Minus3 = -3;
+
+Plus1.SetDefaultColor(Color.GRAY);
+Minus1.SetDefaultColor(Color.GRAY);
+Plus2.SetDefaultColor(Color.DARK_GRAY);
+Minus2.SetDefaultColor(Color.DARK_GRAY);
+Plus3.SetDefaultColor(Color.RED);
+Minus3.SetDefaultColor(Color.RED);
+
+Plus1.SetStyle(Curve.SHORT_DASH);
+Minus1.SetStyle(Curve.SHORT_DASH);
+Plus2.SetStyle(Curve.SHORT_DASH);
+Minus2.SetStyle(Curve.SHORT_DASH);
+Plus3.SetStyle(Curve.SHORT_DASH);
+Minus3.SetStyle(Curve.SHORT_DASH);
+
+# Cloud for ±1σ region (bulk of the distribution)
+AddCloud(Plus1, Minus1, Color.DARK_GRAY, Color.DARK_GRAY);
+
+# Optional label showing current Z-score
+AddLabel(yes, "Z = " + Round(Z, 2), if AbsValue(Z) >= 2 then Color.RED else Color.WHITE);
