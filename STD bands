@@ -1,0 +1,49 @@
+#-----------------------------------------------
+# Convolutional Mean & StdDev Bands (Gaussian)
+# Overlay study (on price)
+#-----------------------------------------------
+
+input length = 21;          # window size (odd works best)
+input sigmaScale = 0.4;     # 0.25–0.6 typical
+input deviations = 2.0;     # number of std devs for bands
+input price = close;
+
+def L = Max(3, length);
+def mid = (L - 1) / 2.0;
+
+# Normalisation for Gaussian kernel
+def totalWeight =
+    fold j = 0 to L
+    with w = 0.0
+    do w + Exp(-Sqr((j - mid) / (sigmaScale * mid)) / 2);
+
+# Convolutional (Gaussian) mean
+def convMean =
+    fold i = 0 to L
+    with m = 0.0
+    do m
+       + (Exp(-Sqr((i - mid) / (sigmaScale * mid)) / 2) / totalWeight)
+         * price[i];
+
+# Gaussian-weighted E[X^2]
+def convSecondMoment =
+    fold k = 0 to L
+    with s = 0.0
+    do s
+       + (Exp(-Sqr((k - mid) / (sigmaScale * mid)) / 2) / totalWeight)
+         * Sqr(price[k]);
+
+def convVar = Max(convSecondMoment - Sqr(convMean), 0);
+def convStd = Sqrt(convVar);
+
+plot Mean = convMean;
+Mean.SetDefaultColor(Color.WHITE);
+Mean.SetLineWeight(2);
+
+plot UpperBand = convMean + deviations * convStd;
+plot LowerBand = convMean - deviations * convStd;
+
+UpperBand.SetDefaultColor(Color.CYAN);
+LowerBand.SetDefaultColor(Color.CYAN);
+
+AddCloud(UpperBand, LowerBand, Color.DARK_GRAY, Color.DARK_GRAY);
